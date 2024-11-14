@@ -5,18 +5,6 @@ cuda.Device(0).make_context()
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 
 def build_engine(onnx_file_path, engine_file_path="model.trt", use_fp16=True, workspace_size=1 << 30):
-    """
-    Converts an ONNX model to a TensorRT engine and saves it to a file.
-
-    Args:
-        onnx_file_path (str): Path to the ONNX model file.
-        engine_file_path (str): Path to save the generated TensorRT engine.
-        use_fp16 (bool): Whether to enable FP16 precision mode.
-        workspace_size (int): Workspace memory size for TensorRT.
-
-    Returns:
-        engine: A TensorRT engine object, or None if conversion failed.
-    """
     # Initialize the TensorRT builder, network, and parser
     with trt.Builder(TRT_LOGGER) as builder, \
          builder.create_network(1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)) as network, \
@@ -35,6 +23,16 @@ def build_engine(onnx_file_path, engine_file_path="model.trt", use_fp16=True, wo
                 for error in range(parser.num_errors):
                     print(parser.get_error(error))
                 return None
+
+        # Add an optimization profile for dynamic shapes
+        profile = builder.create_optimization_profile()
+        for i in range(network.num_inputs):
+            input_name = network.get_input(i).name
+            input_shape = network.get_input(i).shape
+            if -1 in input_shape:  # Check if there's a dynamic dimension
+                # Set dynamic shape ranges (e.g., batch size 1 to 5, or other dimensions as needed)
+                profile.set_shape(input_name, (1, 3, 416, 416), (3, 3, 416, 416), (5, 3, 416, 416))
+        config.add_optimization_profile(profile)
 
         # Build and save the engine
         print("Building TensorRT engine. This may take a few minutes...")
