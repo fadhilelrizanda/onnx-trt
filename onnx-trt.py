@@ -27,6 +27,15 @@ def build_engine(onnx_file_path, engine_file_path="model.trt", use_fp16=True, wo
                     print(parser.get_error(error))
                 return None
 
+        # Create optimization profile for dynamic shapes
+        profile = builder.create_optimization_profile()
+        input_shape = network.get_input(0).shape
+        min_shape = (1, *input_shape[1:])  # Minimum batch size
+        opt_shape = (4, *input_shape[1:])  # Optimal batch size
+        max_shape = (8, *input_shape[1:])  # Maximum batch size
+        profile.set_shape(network.get_input(0).name, min_shape, opt_shape, max_shape)
+        config.add_optimization_profile(profile)
+
         # Build and serialize the engine
         engine = builder.build_serialized_network(network, config)
 
